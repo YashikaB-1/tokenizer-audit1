@@ -34,10 +34,7 @@ Or individually — every document names the command that produced its numbers.
 NOTEBOOK.md                  chronological log: hypothesis -> experiment -> result -> revision,
                              including the conclusions that turned out to be wrong
 AI_USAGE.md                  what the AI did, where it misled me, what I must defend
-DEFENSE.md                   the 7 derivations worked through, 10 counterfactuals with
-                             measured answers, and the live-demo commands
-drill.py                     self-test on the numbers you have to defend; every answer is
-                             recomputed live from source, never hardcoded
+
 run_all.sh                   reproduces every number in the repo
 
 partA/
@@ -94,14 +91,3 @@ Every claim below is a command, not an assertion.
 | B1 survives a 3× error in the overhead assumption; b32 never fits | DEFENSE §2 | `python partB/sensitivity.py` |
 | GPT-2 sits at *exactly* 1.000 tok/byte on Kannada — literally byte-level | DEFENSE §1.4 | `python partA/probe.py -v "ಬೆಂಗಳೂರು"` |
 
-## Notes for the defense
-
-- `partA/corpus/` is committed, so the analysis re-runs without network. `build_corpus.py`
-  rebuilds it from the pinned SHA-256 if you want to verify provenance.
-- FLORES `devtest` was held back until the analysis was frozen, then used once, as a
-  replication check only — `python partA/replicate.py`. Nothing was tuned against it. Max
-  drift on any of 30 multipliers: **2.54%**.
-- `audit_evidence.py` takes `--tokenizer`, `--langs` and `--corpus-dir`, so any ablation can be
-  re-pointed at a different tokenizer or language pair live.
-- `--n` on `build_corpus.py` takes a deterministic prefix, not a random sample, so a subset is
-  re-derivable without a seed.
