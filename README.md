@@ -87,7 +87,5 @@ Every claim below is a command, not an assertion.
 | `reported_tok_s` = (prompt+gen)×n/wall, 0.01% error | B3 | `python partB/b2b3_goodput.py` |
 | batch-24 goodput = 200.9 tok/s, two independent routes | B3 | `python partB/b2b3_goodput.py` |
 | throughput peaks at batch 24 because 32 needs 125% of the KV pool | B2 | `python partB/b2b3_goodput.py` |
-| every Part A conclusion holds on the held-out split (max drift 2.54%) | DEFENSE §2 | `python partA/replicate.py` |
-| B1 survives a 3× error in the overhead assumption; b32 never fits | DEFENSE §2 | `python partB/sensitivity.py` |
-| GPT-2 sits at *exactly* 1.000 tok/byte on Kannada — literally byte-level | DEFENSE §1.4 | `python partA/probe.py -v "ಬೆಂಗಳೂರು"` |
+
 
