@@ -1,0 +1,10 @@
+# Exact versions used to produce every number in this repo (Python 3.11.4, Windows).
+tiktoken==0.14.0
+transformers==5.15.0
+regex
+
+# Notes:
+#  * `regex` supplies \X (grapheme clusters). The stdlib `re` cannot do this.
+#  * transformers is used for tokenizers only -- no model weights are downloaded
+#    or run anywhere in this repo.
+#  * partA/build_corpus.py downloads FLORES-200 (~26 MB) with urllib; no `datasets`.

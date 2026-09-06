@@ -1,0 +1,69 @@
+
+================================================================================
+S1  Sensitivity to the assumed non-KV overhead
+================================================================================
+The spec says 'assume ~1.6 GB'. If that assumption is wrong, how wrong is B1?
+
+  overhead            max seqs    err vs log   does b32 fit?
+  ----------------------------------------------------------
+  1.0 GB                 26.99          5.9%              no
+  1.3 GB                 26.35          3.3%              no
+  1.6 GB                 25.72          0.8%              no
+  2.0 GB                 24.86         -2.5%              no
+  2.5 GB                 23.80         -6.7%              no
+  3.0 GB                 22.73        -10.8%              no
+
+Across a 3x range of the overhead assumption, capacity stays between 23 and 28
+sequences and batch 32 NEVER fits. The B2 mechanism does not depend on getting
+the overhead right -- it only needs the ceiling to sit between 24 and 32, and
+every plausible overhead puts it there.
+
+================================================================================
+S2  Sensitivity to the GB / GiB reading of '24 GB'
+================================================================================
+  interpretation              max seqs    err vs log   does b32 fit?
+  ------------------------------------------------------------------
+  24 GB  (decimal)               25.72          0.8%              no
+  24 GiB (binary)                29.18         14.4%              no
+
+The decimal reading matches the log to under 1%; the binary reading is 14% high.
+But note that even the binary reading does not let batch 32 fit -- so B2's
+conclusion survives being wrong about this too.
+
+================================================================================
+S3  The GQA trap: what if you sized the cache by query heads?
+================================================================================
+  KV sized by                        bytes/token    max seqs    err vs log
+  ------------------------------------------------------------------------
+  8 KV heads (correct, GQA)              114,688       25.72          0.8%
+  24 query heads (the trap)              344,064        8.57        -66.4%
+
+Using the 24 query heads predicts 8.6 concurrent sequences. The log shows batch
+24 running with zero preemptions, which is flatly impossible under that number.
+So the log does not merely agree with the GQA arithmetic -- it rules out the
+alternative. This is the cleanest confirmation that 114,688 B/token is right.
+
+================================================================================
+S4  fp8 KV cache -- the B2 alternative proposal, sized
+================================================================================
+  KV precision                 bytes/token    max seqs   does b48 fit?
+  --------------------------------------------------------------------
+  fp16 (current)                   114,688       25.72              no
+  fp8                               57,344       51.43             YES
+
+fp8 KV is the only one of the two B2 proposals that makes batch 48 resident.
+Its predicted throughput gain is the weaker claim of the two (it extrapolates a
+4-point fit); its predicted CAPACITY gain is straight arithmetic and solid.
+
+================================================================================
+S5  What would have to be true for '~25 sequences' to be wrong?
+================================================================================
+Solving backwards from the log's observed pool (~104,468 tokens = 25.5 seqs of
+4096), the free parameter is the overhead:
+
+    required overhead = 24e9 x 0.92 - 8.4e9 - 104,468 x 114,688
+                      = 1.70 GB
+
+The spec's assumed 1.60 GB versus the 1.70 GB the log implies -- a 0.1 GB gap
+on a 24 GB card. Either the spec's estimate is slightly low or there is a little
+allocator fragmentation. Nothing in B1 or B2 changes at that resolution.

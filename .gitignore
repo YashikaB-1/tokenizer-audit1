@@ -1,0 +1,4 @@
+# FLORES download cache (~102 MB). Rebuild with: python partA/build_corpus.py
+partA/.flores_cache/
+__pycache__/
+*.pyc

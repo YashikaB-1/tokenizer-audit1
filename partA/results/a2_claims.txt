@@ -1,0 +1,81 @@
+
+==============================================================================
+D2  import random / random.seed(1337)  --  dead code, NOT a bug
+==============================================================================
+occurrences of 'random.' in fertility.py : 1   (seed() only, nothing consumes the RNG)
+output with seed == output without seed : True
+  stdout lengths: 244 vs 244
+VERDICT: cosmetic dead code. Removing it changes nothing. NOT a bug.
+
+==============================================================================
+D1  unicodedata.normalize(NFC)  --  load-bearing but CORRECT, NOT a bug
+==============================================================================
+  sample hin   lines=  10  altered_by_NFC=   0  net codepoint delta=   +0
+  sample eng   lines=  10  altered_by_NFC=   0  net codepoint delta=   +0
+  FLORES eng   lines= 997  altered_by_NFC=   0  net codepoint delta=   +0
+  FLORES hin   lines= 997  altered_by_NFC=  90  net codepoint delta= +129
+  FLORES ben   lines= 997  altered_by_NFC= 586  net codepoint delta=+1308
+  FLORES mar   lines= 997  altered_by_NFC=   0  net codepoint delta=   +0
+  FLORES kan   lines= 997  altered_by_NFC=  10  net codepoint delta=  -17
+  FLORES tam   lines= 997  altered_by_NFC=   2  net codepoint delta=   -2
+  FLORES tel   lines= 997  altered_by_NFC=   3  net codepoint delta=   -4
+
+NFC does change real text, so it is not inert -- but it makes two byte-
+different spellings of the SAME grapheme compare equal, which is exactly
+what you want before counting anything. Its measured cost on the headline
+is the D1 row of audit_evidence.py (-0.01x on 6.10x, i.e. 0.2%).
+VERDICT: correct preprocessing, cheap. NOT a bug.
+
+==============================================================================
+C4  the sample corpus is NOT line-aligned (FLORES = positive control)
+==============================================================================
+Test: in a genuinely parallel corpus, sentence length in language A and
+language B correlate across lines -- long sentences translate to long
+sentences. FLORES is known-parallel and acts as the positive control.
+
+  sample_kit  eng vs hin   n=  10   pearson r = +0.511
+  FLORES dev  eng vs hin   n= 997   pearson r = +0.915
+  FLORES dev  eng vs ben   n= 997   pearson r = +0.904
+  FLORES dev  eng vs mar   n= 997   pearson r = +0.918
+  FLORES dev  eng vs kan   n= 997   pearson r = +0.914
+  FLORES dev  eng vs tam   n= 997   pearson r = +0.907
+  FLORES dev  eng vs tel   n= 997   pearson r = +0.897
+
+Manual spot-check of the sample -- the translations exist but are SHUFFLED:
+   eng line  3  <->  hin line  3    I bought this book yesterday   -- aligned by luck
+   eng line  4  <->  hin line  7    children playing cricket       -- eng L4 = hin L7
+   eng line  5  <->  hin line  6    the train arrived on time      -- eng L5 = hin L6
+   eng line  8  <->  hin line  4    visiting Mysuru next week      -- eng L8 = hin L4
+   eng line  7  <->  hin line 10    books in the cupboard          -- eng L7 = hin L10
+
+Also: 4 of the 10 English lines have no Hindi counterpart at all
+(airport traffic, quarterly review, NASA/ISRO, GPU cluster).
+
+VERDICT: this does NOT change the tok/word numbers -- those are per-file
+aggregates. It forecloses the one denominator that matters (A3), and it
+means the sample cannot support any per-sentence claim.
+
+==============================================================================
+C2  REPORT_v0 Finding 2: 'tok/char agrees, which confirms the per-word number'
+==============================================================================
+tok/word and tok/char share the SAME numerator. Their ratio-of-ratios is
+an algebraic identity that contains no token counts at all:
+
+   (T_h/C_h) / (T_e/C_e)      C_e/W_e      chars-per-word(eng)
+   --------------------- =  ---------  =  -------------------
+   (T_h/W_h) / (T_e/W_e)      C_h/W_h      chars-per-word(hin)
+
+  eng: tokens=   99  words=  78  codepoints=  448   chars/word=5.744
+  hin: tokens=  459  words=  61  codepoints=  290   chars/word=4.754
+
+  tok/word ratio (hin:eng) = 5.928x
+  tok/char ratio (hin:eng) = 7.162x   (REPORT_v0 quotes ~7.0x)
+  r_char / r_word          = 1.2081
+  cpw(eng) / cpw(hin)      = 1.2081   <-- identical, by construction
+
+The 19% gap between 5.89x and 7.0x is neither corroboration nor noise:
+it is exactly the statement that Hindi packs fewer codepoints per
+whitespace word than English. It carries ZERO extra information about
+the tokenizer.
+VERDICT: Finding 2 is not evidence. The two metrics cannot disagree except
+by the chars-per-word ratio, so 'they agree' is unfalsifiable.

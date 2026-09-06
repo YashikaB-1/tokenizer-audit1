@@ -1,0 +1,75 @@
+==============================================================================
+B1(a)  KV-cache bytes per token
+==============================================================================
+One cached token needs a K vector and a V vector in every layer.
+With grouped-query attention the cache is sized by the KV head count (8),
+not the query head count (24) -- that is the whole point of GQA.
+
+  bytes/token = 2 (K and V)
+              x layers        (28)
+              x kv_heads      (8)     <- GQA: 8, not 24
+              x head_dim      (128)
+              x bytes/elem    (2)     <- fp16 KV cache
+
+  = 2 x 28 x 8 x 128 x 2
+  = 114,688 bytes/token  =  112 KiB/token
+
+  Sanity check -- if someone wrongly used the 24 query heads:
+    2 x 28 x 24 x 128 x 2 = 344,064 bytes/token (3x too big)
+
+  One full 4096-token sequence: 114,688 x 4096 = 469,762,048 bytes = 448.0 MiB = 0.470 GB
+
+==============================================================================
+B1(b)  How many concurrent 4096-token sequences fit
+==============================================================================
+  weights        = 4.2e+09 params x 2 B = 8.40 GB
+  overhead       = 1.60 GB (given)
+
+  The spec says '24 GB' and vLLM's gpu_memory_utilization applies to
+  total device memory, so the GB-vs-GiB reading of '24' matters. Both:
+
+  interpretation                    usable       KV pool  max tokens    max seqs
+
+  ------------------------------------------------------------------------------
+  24 GB  (decimal, 24e9)          22.08 GB      12.08 GB     105,329       25.72
+  24 GiB (binary, 2^30)           23.71 GB      13.71 GB     119,526       29.18
+
+  Arithmetic for the decimal reading, in full:
+    24.00 GB x 0.92                 = 22.08 GB usable
+    22.08 - 8.40 (weights) - 1.60 (overhead) = 12.08 GB for KV
+    12.08 GB / 114,688 B per token       = 105,329 tokens
+    105,329 tokens / 4096                = 25.7 sequences  -> floor 25
+
+==============================================================================
+B1(c)  Check the prediction against bench_log.csv
+==============================================================================
+kv_cache_util is the fraction of the KV pool in use. Inverting it on
+each row gives an OBSERVED pool size, in tokens and in 4096-tok seqs.
+kv_cache_util is logged to 2 decimals, so rows below ~0.05 are dominated
+by rounding (at util=0.01 one ulp is +-50%) and are excluded from the mean.
+
+  batch    plen  glen  tok/seq  kv_util  live tokens   implied pool  implied seqs
+  -------------------------------------------------------------------------------
+  1         512   256      768     0.01          768         76,800          18.8  <- util quantisation, excluded
+  2         512   256      768     0.01        1,536        153,600          37.5  <- util quantisation, excluded
+  4         512   256      768     0.03        3,072        102,400          25.0  <- util quantisation, excluded
+  8         512   256      768     0.06        6,144        102,400          25.0
+  16        512   256      768     0.12       12,288        102,400          25.0
+  32        512   256      768     0.23       24,576        106,852          26.1
+  64        512   256      768     0.47       49,152        104,579          25.5
+  4        3584   512     4096     0.16       16,384        102,400          25.0
+  8        3584   512     4096     0.31       32,768        105,703          25.8
+  16       3584   512     4096     0.62       65,536        105,703          25.8
+  24       3584   512     4096     0.93       98,304        105,703          25.8
+  32       3584   512     4096     0.97      131,072        135,126          33.0  <- saturated / preempting, excluded
+  48       3584   512     4096     0.97      196,608        202,689          49.5  <- saturated / preempting, excluded
+
+  observed pool (mean of 8 usable rows)     : 104,468 tokens = 25.5 seqs of 4096
+  predicted pool (decimal 24 GB)           : 105,329 tokens = 25.7 seqs
+  error                                    : +0.82%
+
+  (the 24 GiB reading predicts 119,526 tokens = 29.2 seqs, +14.4% -- ruled out)
+
+  CONCLUSION: ~25 concurrent 4096-token sequences. The log agrees:
+  batch 24 sits at 0.93 util with 0 preemptions; batch 32 (which would
+  need 131072 tokens, 125% of the pool) pins at 0.97 and preempts 7.

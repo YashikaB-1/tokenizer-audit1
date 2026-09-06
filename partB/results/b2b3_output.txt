@@ -1,0 +1,180 @@
+
+========================================================================================
+B3(i)  What `reported_tok_s` actually counts
+========================================================================================
+Hypothesis: the harness counter divides ALL tokens it touched -- prompt
+tokens included -- by wall clock. Prompt tokens are processed in a
+parallel prefill and are nearly free per token; generated tokens are not.
+Test both candidate formulas against every row.
+
+  batch    plen  glen    reported (p+g)*n/wall     err%     g*n/wall     err%
+  ---------------------------------------------------------------------------
+  1         512   256        70.2         70.2    +0.00         23.4    -66.7
+  2         512   256       132.3        132.3    -0.00         44.1    -66.7
+  4         512   256       261.0        261.0    +0.00         87.0    -66.7
+  8         512   256       495.4        495.5    +0.02        165.2    -66.7
+  16        512   256       883.2        883.4    +0.02        294.5    -66.7
+  32        512   256      1489.6       1489.5    -0.01        496.5    -66.7
+  64        512   256      2267.3       2267.2    -0.01        755.7    -66.7
+  4        3584   512       565.4        565.4    -0.01         70.7    -87.5
+  8        3584   512       902.6        902.7    +0.01        112.8    -87.5
+  16       3584   512      1311.4       1311.5    +0.01        163.9    -87.5
+  24       3584   512      1607.4       1607.3    -0.00        200.9    -87.5
+  32       3584   512      1384.0       1383.9    -0.01        173.0    -87.5
+  48       3584   512      1298.5       1298.5    +0.00        162.3    -87.5
+
+  mean |error| vs (prompt+gen)/wall : 0.01%   <-- this is the formula
+  mean |error| vs (gen only)/wall   : 76.3%
+
+  CONFIRMED: reported_tok_s = (prompt_len + gen_len) * num_requests / wall.
+  It is a *total tokens processed* counter, not a generation-rate counter.
+  On the 3584/512 rows, 88% of that number is prompt tokens.
+
+========================================================================================
+B3(ii)  Goodput -- generated tokens per second -- for every row
+========================================================================================
+Two independent derivations of the batch-24 long-prompt row are shown
+below the table; they must agree, and they do.
+
+  batch    plen  glen   reported    goodput   prompt%  itl-implied  preempt
+  -------------------------------------------------------------------------
+  1         512   256       70.2       23.4       67%         23.0        0
+  2         512   256      132.3       44.1       67%         46.4        0
+  4         512   256      261.0       87.0       67%         88.2        0
+  8         512   256      495.4      165.2       67%        170.8        0
+  16        512   256      883.2      294.5       67%        331.1        0
+  32        512   256     1489.6      496.5       67%        569.7        0
+  64        512   256     2267.3      755.7       67%        942.4        0
+  4        3584   512      565.4       70.7       88%         77.9        0
+  8        3584   512      902.6      112.8       88%        128.5        0
+  16       3584   512     1311.4      163.9       88%        207.3        0
+  24       3584   512     1607.4      200.9       88%        249.8        0  *
+  32       3584   512     1384.0      173.0       88%        314.4        7
+  48       3584   512     1298.5      162.3       88%        480.0       23
+
+  Batch-24 long-prompt row (*), honest goodput -- two independent routes:
+    route 1, from the raw counts:
+       24 requests x 512 generated tokens / 61.16 s = 200.9 tok/s
+    route 2, strip the prompt fraction out of the harness counter:
+       1607.4 tok/s x 512/(3584+512) = 200.9 tok/s
+    agreement: 0.0047% apart
+
+    cross-check from the decode-rate column (not independent of wall clock,
+    but a useful upper bound):
+       24 concurrent / 96.07 ms per token = 249.8 tok/s steady-state decode
+       200.9 / 249.8 = 0.80  ->  only 80% of wall clock is spent decoding;
+       the other 20% is prefill (ttft 500 ms) and scheduling.
+
+  The comparison REPORT_v0 actually made, redone on goodput (batch 16):
+    short prompts (512) : reported 883.2 -> goodput 294.5 tok/s
+    long  prompts (3584): reported 1311.4 -> goodput 163.9 tok/s
+    reported_tok_s says long is 1.48x BETTER.
+    goodput says long is 1.80x WORSE (44% less useful output).
+    The sign of the conclusion flips.
+
+  'best observed ~1600 tok/s' in REPORT_v0 is also not the max of any column:
+    max reported_tok_s : 2267.3 (batch 64, prompt 512)
+    max goodput        : 755.7 (batch 64, prompt 512)
+
+  The batch-48 prediction, checked against the row that already exists:
+    REPORT_v0 predicts   ~3200 tok/s at batch 48
+    log row batch 48     1298.5 tok/s reported (41% of the prediction)
+    log row batch 48     162.3 tok/s goodput  (5% of the prediction)
+    The batch-48 run was already IN the log. It did not need extrapolating.
+
+========================================================================================
+B2  The long-context (prompt 3584) throughput anomaly
+========================================================================================
+Naive expectation: throughput rises monotonically with batch until the
+GPU is compute-bound. Observed:
+
+  batch    reported   goodput     wall_s   kv_util   preempt   ttft_ms   itl_ms
+  -----------------------------------------------------------------------------
+  4           565.4      70.7      28.98      0.16         0     483.2    51.33
+  8           902.6     112.8      36.30      0.31         0     519.0    62.26  +59.6%
+  16         1311.4     163.9      49.97      0.62         0     498.3    77.20  +45.3%
+  24         1607.4     200.9      61.16      0.93         0     500.5    96.07  +22.6%
+  32         1384.0     173.0      94.71      0.97         7     636.9   101.79  -13.9%
+  48         1298.5     162.3     151.41      0.97        23     955.4   100.00  -6.2%
+
+THE ANOMALY: throughput peaks at batch 24 and then FALLS. Going 24 -> 32
+adds 33% more concurrent work and loses 13.9% of throughput; 24 -> 48
+doubles the work and loses 19.2%. Even the inflated counter goes DOWN.
+
+MECHANISM -- KV-cache exhaustion forcing preemption + prefill recompute.
+Named rows and columns:
+
+  1. Capacity. B1 gives a KV pool of 105,329 tokens = 25.7 sequences of 4096.
+     batch 4  needs  16,384 tokens =    16% of the pool
+     batch 8  needs  32,768 tokens =    31% of the pool
+     batch 16 needs  65,536 tokens =    62% of the pool
+     batch 24 needs  98,304 tokens =    93% of the pool
+     batch 32 needs 131,072 tokens =   124% of the pool   <-- does not fit
+     batch 48 needs 196,608 tokens =   187% of the pool   <-- does not fit
+
+  2. `kv_cache_util` pins: 0.93 (b24) -> 0.97 (b32) -> 0.97 (b48).
+     It cannot exceed ~0.97, so the extra sequences are not resident.
+
+  3. `preempted_seqs` turns on exactly there: 0 -> 7 -> 23.
+     At b48, 23 of 48 requests (48%) were evicted at least once.
+
+  4. `ttft_ms_p50` jumps 500.5 -> 636.9 -> 955.4 ms (+91% at b48).
+     Preempted sequences must RE-PREFILL, which is a second first-token.
+
+  5. The decisive column pair. `itl_ms_p50` barely moves:
+     96.07 -> 101.79 -> 100.00 ms (+4.1%). Decode speed per resident token
+     is essentially UNCHANGED -- the GPU is not saturated on compute.
+     But `wall_clock_s` explodes 61.16 -> 94.71 -> 151.41 s.
+     Time that SHOULD be decoding, gen_len x itl: 49.2 s (b24), 51.2 s (b48).
+     Fraction of wall clock actually decoding: 80% (b24) -> 34% (b48).
+     So the loss is not slower decoding. It is time spent NOT decoding:
+     evicting, re-queuing and re-prefilling the same sequences.
+
+----------------------------------------------------------------------------------------
+PROPOSED CHANGE (primary): cap --max-num-seqs at 24.
+----------------------------------------------------------------------------------------
+Fit wall_clock vs batch on the 4 preemption-free long-context rows
+(batches [4, 8, 16, 24]):  wall = 23.15 + 1.612 * batch   (R^2 = 0.9968)
+
+With max_num_seqs=24, the 48-request load runs as 2 sequential waves of 24,
+each of which the log already measured at 61.16 s with 0 preemptions.
+
+  PREDICTION for the batch-48 workload:
+    wall clock : 151.41 s -> 122.32 s        (-19.2%)
+    goodput    : 162.3 -> 200.9 tok/s      (+23.8%)
+    preemptions: 23 -> 0
+    COST: wave-2 requests queue behind wave 1, so ttft p95 goes from
+          955 ms to roughly 61.7 s. This buys throughput with tail latency
+          and is the right trade only if the SLO is throughput-shaped.
+
+----------------------------------------------------------------------------------------
+PROPOSED CHANGE (alternative): fp8 KV cache.
+----------------------------------------------------------------------------------------
+Halving KV bytes/token 114,688 -> 57,344 doubles the pool to 210,658 tokens
+= 51.4 concurrent 4096-token sequences, so batch 48 becomes resident.
+  Extrapolating the preemption-free fit to batch 48: wall = 100.5 s
+  PREDICTION: wall 151.41 -> 100.5 s (-34%), goodput 162.3 -> 244.5 tok/s (+51%)
+  Weaker claim than the first: it extrapolates a 4-point fit beyond its
+  range and assumes fp8 KV costs no accuracy. Verify before trusting.
+
+========================================================================================
+B4  Which counter confirms the B2 mechanism
+========================================================================================
+Pull `vllm:num_preemptions_total` (the scheduler's cumulative preemption
+counter), scraped from /metrics across one batch-48 run.
+
+  Expected value: >= 23 for the batch-48 row and >= 7 for batch-32, matching
+  the `preempted_seqs` column -- and STRICTLY greater if any sequence was
+  preempted more than once, which the column ("preempted at least once")
+  cannot show. At batch 24 and below it must stay at exactly 0.
+
+If I could pull a second, `vllm:prompt_tokens_total` settles it quantitatively.
+A preempted sequence in the default RECOMPUTE policy re-runs its whole prefill,
+so prompt tokens get counted twice for it:
+
+  no preemption : 48 x 3584                    = 172,032 prompt tokens
+  observed      : (48 + 23) x 3584             = 254,464   (+47.9%)
+
+Seeing ~254k rather than ~172k proves the lost time is recomputed prefill and
+not, say, memory-bandwidth saturation -- a bandwidth wall would inflate
+`itl_ms_p50`, and the log shows it flat at ~100 ms from batch 24 to 48.

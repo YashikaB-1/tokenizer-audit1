@@ -1,0 +1,23 @@
+tokenizer : gpt2
+corpus    : D:\tokenizer-audit\starter_kit_original\corpus_sample  (eng=10 lines, hin=10 lines)
+
+configuration                               eng fert hin fert     ratio  eng t/c  hin t/c d(ratio)
+--------------------------------------------------------------------------------------------------
+V0 (as shipped, reproduces REPORT_v0)          1.265    7.448     5.89x    0.226    1.579
+
+--- single-flag ablations (one change from V0) ------------------------------
+F1  split() instead of split(' ')              1.283    7.598     5.92x    0.226    1.579    +0.03
+F2  no .lower()                                1.229    7.448     6.06x    0.220    1.579    +0.17
+F3  corpus-level ratio (micro avg)             1.253    7.403     5.91x    0.221    1.583    +0.02
+F4a chars = grapheme clusters                  1.265    7.448     5.89x    0.226    2.450    +0.00
+F4b chars = UTF-8 bytes                        1.265    7.448     5.89x    0.226    0.599    +0.00
+
+--- decoys: things that LOOK wrong ------------------------------------------
+D1  drop NFC normalisation                     1.265    7.448     5.89x    0.226    1.579    +0.00
+    -> lines altered by NFC: {'eng': 0, 'hin': 0}
+
+--- all fixes together ------------------------------------------------------
+F1+F2+F3 (corrected tok/word)                  1.231    7.525     6.11x    0.214    1.583    +0.23
+
+V0 headline ratio       : 5.89x
+Corrected tok/word ratio: 6.11x

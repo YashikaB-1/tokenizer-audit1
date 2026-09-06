@@ -1,0 +1,45 @@
+============================================================================================
+Denominator size for IDENTICAL CONTENT (997 parallel sentences)
+============================================================================================
+If a denominator held meaning constant, every column below would be flat.
+
+denominator               eng      hin      ben      mar      kan      tam      tel    max/min      CV%
+-------------------------------------------------------------------------------------------------------
+parallel sentence        1.00     1.00     1.00     1.00     1.00     1.00     1.00      1.00x     0.0%
+whitespace word         21.02    24.68    18.81    18.12    15.48    16.18    16.44      1.59x    16.1%
+grapheme cluster       125.57    82.65    78.36    76.33    86.44    94.75    73.79      1.70x    18.8%
+UTF-8 byte             125.67   323.61   334.50   336.69   358.48   399.99   339.82      3.18x    25.7%
+Unicode codepoint      125.57   125.87   124.96   126.08   132.15   146.57   127.55      1.17x     5.5%
+
+(units are 'per parallel sentence', so each column is the same content)
+
+============================================================================================
+Contamination factor D_eng/D_lang -- what each denominator ADDS to the ratio
+============================================================================================
+A ratio computed with denominator D equals (true token ratio) x (D_eng/D_lang).
+Only the parallel sentence gives 1.00 everywhere.
+
+denominator               eng      hin      ben      mar      kan      tam      tel
+-----------------------------------------------------------------------------------
+parallel sentence        1.00     1.00     1.00     1.00     1.00     1.00     1.00
+whitespace word          1.00     0.85     1.12     1.16     1.36     1.30     1.28
+grapheme cluster         1.00     1.52     1.60     1.65     1.45     1.33     1.70
+UTF-8 byte               1.00     0.39     0.38     0.37     0.35     0.31     0.37
+Unicode codepoint        1.00     1.00     1.00     1.00     0.95     0.86     0.98
+
+============================================================================================
+VERDICT
+============================================================================================
+  parallel sentence    holds content constant BY CONSTRUCTION
+  Unicode codepoint    varies 1.17x across languages -- contaminates every ratio
+  whitespace word      varies 1.59x across languages -- contaminates every ratio
+  grapheme cluster     varies 1.70x across languages -- contaminates every ratio
+  UTF-8 byte           varies 3.18x across languages -- contaminates every ratio
+
+Why 'per whitespace word' is the worst of the four for THIS decision:
+  * Hindi splits postpositions off as separate orthographic words, so it has
+    MORE words per unit of meaning than English.
+  * Kannada/Tamil/Telugu are agglutinative: one word packs several English
+    words' worth of morphemes, so they have FEWER words per unit of meaning.
+  The denominator therefore moves in OPPOSITE directions for Indo-Aryan and
+  Dravidian, which is exactly the axis the report claimed to be measuring.

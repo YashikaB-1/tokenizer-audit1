@@ -1,0 +1,7 @@
+source           FLORES-200 (dev split)
+url              https://dl.fbaipublicfiles.com/nllb/flores200_dataset.tar.gz
+sha256           b8b0b76783024b85797e5cc75064eb83fc5288b41e9654dabc7be6ae944011f6
+sentences        997 (of 997 in split; 0 dropped as blank in >=1 language)
+languages        eng, hin, ben, mar, kan, tam, tel
+alignment        line i is the same sentence in every file
+preprocessing    none beyond blank-line removal; NO lowercasing, NO unicode normalisation, NO punctuation stripping

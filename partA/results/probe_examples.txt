@@ -1,0 +1,62 @@
+### probe: Kannada 'Bengaluru' -- one word, gpt2 falls to byte level
+text      : ಬೆಂಗಳೂರು
+units     : 1 words | 4 grapheme clusters | 24 UTF-8 bytes
+
+  tokenizer    tokens   tok/word   tok/graph   tok/byte
+  -----------------------------------------------------
+  gpt2             24     24.000      6.000       1.000   <- at byte level
+             [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�] [�]
+  qwen2.5          14     14.000      3.500       0.583
+             [�] [�] [�] [�] [�] [�] [ಗ] [�] [�] [�] [�] [ರ] [�] [�]
+  xlm-r             1      1.000      0.250       0.042
+             [ಬೆಂಗಳೂರು]
+  bloom             1      1.000      0.250       0.042
+             [ಬೆಂಗಳೂರು]
+  sarvam-1          4      4.000      1.000       0.167
+             [ಬೆ] [ಂ] [ಗಳೂ] [ರು]
+
+  best xlm-r (1 tokens) vs worst gpt2 (24) = 24.00x spread on identical text
+
+### probe: a parallel pair -- the A3 metric on one sentence
+
+### A (pivot)
+text      : I need a little water.
+units     : 5 words | 22 grapheme clusters | 22 UTF-8 bytes
+
+  tokenizer    tokens   tok/word   tok/graph   tok/byte
+  -----------------------------------------------------
+  gpt2              6      1.200      0.273       0.273
+  qwen2.5           6      1.200      0.273       0.273
+  xlm-r             6      1.200      0.273       0.273
+  bloom             6      1.200      0.273       0.273
+  sarvam-1          6      1.200      0.273       0.273
+
+  all tokenizers agree at 6 tokens (no spread on this input)
+
+### B
+text      : मुझे थोड़ा पानी चाहिए।
+units     : 4 words | 13 grapheme clusters | 60 UTF-8 bytes
+
+  tokenizer    tokens   tok/word   tok/graph   tok/byte
+  -----------------------------------------------------
+  gpt2             35      8.750      2.692       0.583
+  qwen2.5          22      5.500      1.692       0.367
+  xlm-r             5      1.250      0.385       0.083
+  bloom             5      1.250      0.385       0.083
+  sarvam-1          5      1.250      0.385       0.083
+
+  best xlm-r (5 tokens) vs worst gpt2 (35) = 7.00x spread on identical text
+
+==============================================================
+COST MULTIPLIER for identical content (B tokens / A tokens)
+==============================================================
+  tokenizer            A         B         B/A
+  ------------------------------------------
+  gpt2                 6        35       5.83x
+  qwen2.5              6        22       3.67x
+  xlm-r                6         5       0.83x
+  bloom                6         5       0.83x
+  sarvam-1             6         5       0.83x
+
+  This is the A3 metric on a single sentence pair. It is the same
+  computation fertility_v1.py does over 997 of them.

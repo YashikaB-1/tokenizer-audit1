@@ -1,0 +1,78 @@
+dev     : 997 parallel sentences (analysis developed on this)
+devtest : 1012 parallel sentences (held out, never inspected)
+
+======================================================================================
+A3 headline -- cost multiplier vs eng for identical content, per parallel sentence
+======================================================================================
+  tokenizer lang         dev   devtest    delta   delta%
+  ------------------------------------------------------
+  gpt2      hin        7.45x     7.42x   -0.031    -0.42%
+  gpt2      ben        9.66x     9.61x   -0.051    -0.53%
+  gpt2      mar        7.79x     7.86x   +0.064    +0.82%
+  gpt2      kan       13.59x    13.58x   -0.004    -0.03%
+  gpt2      tam       15.43x    15.54x   +0.107    +0.70%
+  gpt2      tel       13.04x    12.97x   -0.070    -0.53%
+  qwen2.5   hin        4.44x     4.42x   -0.030    -0.66%
+  qwen2.5   ben        5.05x     5.03x   -0.027    -0.54%
+  qwen2.5   mar        4.60x     4.62x   +0.018    +0.38%
+  qwen2.5   kan        6.93x     6.92x   -0.015    -0.22%
+  qwen2.5   tam        6.10x     6.11x   +0.013    +0.21%
+  qwen2.5   tel        7.05x     6.99x   -0.057    -0.81%
+  xlm-r     hin        1.26x     1.25x   -0.017    -1.34%
+  xlm-r     ben        1.38x     1.37x   -0.005    -0.38%
+  xlm-r     mar        1.22x     1.22x   -0.001    -0.10%
+  xlm-r     kan        1.37x     1.35x   -0.014    -1.00%
+  xlm-r     tam        1.35x     1.35x   +0.001    +0.05%
+  xlm-r     tel        1.33x     1.32x   -0.018    -1.37%
+  bloom     hin        1.30x     1.28x   -0.017    -1.31%
+  bloom     ben        1.17x     1.17x   -0.006    -0.49%
+  bloom     mar        1.22x     1.22x   -0.001    -0.09%
+  bloom     kan        1.34x     1.30x   -0.034    -2.54%
+  bloom     tam        1.29x     1.28x   -0.006    -0.48%
+  bloom     tel        1.35x     1.33x   -0.026    -1.95%
+  sarvam-1  hin        1.14x     1.13x   -0.012    -1.04%
+  sarvam-1  ben        1.11x     1.12x   +0.010    +0.89%
+  sarvam-1  mar        1.07x     1.07x   +0.006    +0.54%
+  sarvam-1  kan        1.24x     1.21x   -0.030    -2.42%
+  sarvam-1  tam        1.15x     1.16x   +0.003    +0.30%
+  sarvam-1  tel        1.16x     1.15x   -0.010    -0.87%
+
+  largest disagreement between splits: 2.54% (bloom/kan)
+
+======================================================================================
+A2 ablations -- the measured effect of each claimed flaw, both splits
+======================================================================================
+
+  --- dev ---
+  V0 (as shipped, reproduces REPORT_v0)          1.283    7.823     6.10x    0.215    1.528
+  F1  split() instead of split(' ')              1.283    7.826     6.10x    0.215    1.528    +0.00
+  F2  no .lower()                                1.237    7.823     6.33x    0.208    1.528    +0.23
+  F3  corpus-level ratio (micro avg)             1.274    7.793     6.12x    0.213    1.529    +0.02
+  D1  drop NFC normalisation                     1.283    7.814     6.09x    0.215    1.527    -0.01
+      -> lines altered by NFC: {'eng': 0, 'hin': 90}
+  F1+F2+F3 (corrected tok/word)                  1.228    7.796     6.35x    0.206    1.529    +0.25
+
+  --- devtest ---
+  V0 (as shipped, reproduces REPORT_v0)          1.287    7.865     6.11x    0.214    1.529
+  F1  split() instead of split(' ')              1.287    7.867     6.11x    0.214    1.529    +0.00
+  F2  no .lower()                                1.244    7.865     6.32x    0.207    1.529    +0.21
+  F3  corpus-level ratio (micro avg)             1.278    7.825     6.12x    0.212    1.530    +0.01
+  D1  drop NFC normalisation                     1.287    7.856     6.10x    0.214    1.529    -0.01
+      -> lines altered by NFC: {'eng': 0, 'hin': 93}
+  F1+F2+F3 (corrected tok/word)                  1.235    7.826     6.34x    0.205    1.530    +0.23
+
+======================================================================================
+VERDICT
+======================================================================================
+Largest cross-split disagreement on any A3 multiplier: 2.54% (bloom/kan).
+
+Every Part A conclusion survives the held-out split: the size of each code bug,
+the direction of the .lower() bias, the 6.5x tokenizer effect and the Dravidian
+multipliers all reproduce. They are properties of the languages and tokenizers,
+not of the particular sentences the analysis was written against.
+
+What this does NOT establish: dev and devtest are the same domain (Wikimedia
+prose), drawn the same way, and translated by the same process. This is a
+sampling check, not a domain-transfer check. The domain caveat in CORPUS.md is
+untouched by it -- nothing here says anything about conversational or Romanised
+text.
